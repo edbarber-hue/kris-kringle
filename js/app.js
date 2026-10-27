@@ -450,6 +450,44 @@
       .catch(function (e) { if (/password/i.test(e.message)) { store('admin', null); adminLogin(viewOrganizer); } else render('<div class="error">' + esc(e.message) + '</div>'); });
   }
 
+  // Ready-to-send messages: "Hey Ana, you chose Ben. This is what they asked for..."
+  function copyText(txt, b, done) {
+    var ok = function () { if (b) { b.textContent = done || 'Copied ✓'; b.classList.add('copied'); } };
+    if (navigator.clipboard) return navigator.clipboard.writeText(txt).then(ok).catch(function () { fallback(); });
+    fallback();
+    function fallback() {
+      var t = document.createElement('textarea'); t.value = txt; document.body.appendChild(t); t.select();
+      try { document.execCommand('copy'); ok(); } catch (e) { tell('Copy didn\'t work here. Press and hold the message to copy it.'); }
+      t.remove();
+    }
+  }
+
+  function messagesCard(ps, s) {
+    var msgs = KKCore.buildMessages(ps, s);
+    return '<div class="card no-print msgs"><div class="row"><h2 style="margin:0">Messages to send</h2><span class="spacer"></span>' +
+        '<button class="btn secondary small" id="copyAllMsgs">Copy all</button>' +
+        (API.demo ? '' : ' <button class="btn secondary small" id="emailMaster">Email me everything</button>') + '</div>' +
+      '<p class="muted small" style="margin:6px 0 14px">Copy each one and send it to that person on Messenger or Viber.</p>' +
+      msgs.map(function (m, i) {
+        return '<div class="msg"><div class="row"><b>To ' + esc(m.name) + '</b><span class="spacer"></span>' +
+          '<button class="btn small" data-msg="' + i + '">Copy</button></div>' +
+          '<pre class="msg-text">' + esc(m.text) + '</pre></div>';
+      }).join('') + '</div>';
+  }
+
+  function bindMessages(ps, s) {
+    var msgs = KKCore.buildMessages(ps, s);
+    $$('[data-msg]').forEach(function (b) { b.onclick = function () { copyText(msgs[Number(b.dataset.msg)].text, b); }; });
+    var all = $('#copyAllMsgs');
+    if (all) all.onclick = function () { copyText(msgs.map(function (m) { return 'To ' + m.name + ':\n' + m.text; }).join('\n\n----------\n\n'), all); };
+    var em = $('#emailMaster');
+    if (em) em.onclick = function () {
+      busy(em, true, 'Sending…');
+      API.call('emailMaster', { password: adminPw() }).then(function (r) { busy(em, false); em.textContent = 'Sent ✓'; tell('Sent to ' + r.sentTo + '. It\'s also in the Messages tab of your Google Sheet.'); })
+        .catch(function (e) { busy(em, false); tell(e.message); });
+    };
+  }
+
   function renderOrganizer(d) {
     var s = d.settings, ps = d.players;
     $('#brandName').textContent = s.eventName;
@@ -496,6 +534,7 @@
           : '<p class="muted">No one yet. Send the invite below.</p>') +
         (API.demo && !drawn ? '<button class="btn ghost small no-print" id="seed" style="margin-top:12px">Add 8 sample people (demo)</button>' : '') +
       '</div>' +
+      (drawn ? messagesCard(ps, s) : '') +
       '<div class="card no-print"><h3>Invite message</h3>' +
         '<textarea id="invite" rows="4">' + esc(s.eventName) + ': Kris Kringle 🎁\n' +
         'Sign up and add 3–5 gift ideas' + (s.deadline ? ' by ' + esc(fmtDeadline(s.deadline)) : '') + '. ' + peso(s.budget) + ' budget. You\'ll see who you\'re buying for after that.\n' + esc(siteUrl) + '</textarea>' +
@@ -512,6 +551,7 @@
     );
 
     var on0 = function (id, fn) { var el = document.getElementById(id); if (el) el.onclick = function () { fn(el); }; };
+    bindMessages(ps, s);
     on0('printMaster', function () { window.print(); });
     on0('copyMaster', function (b) {
       var txt = sorted.map(function (p, i) {

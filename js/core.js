@@ -414,7 +414,24 @@ var KKCore = (function () {
     }
   }
 
-  return { handle: handle, newGame: newGame, PUBLIC: PUBLIC, MAX_WISHES: MAX_WISHES, MIN_WISHES: MIN_WISHES };
+  // "Hey Ana, you chose Ben Santos. This is what they asked for: ..."
+  function buildMessages(players, settings) {
+    var byNo = {};
+    players.forEach(function (p) { if (p.mystery) byNo[p.mystery] = p; });
+    var budget = (settings && settings.budget) || 500;
+    return players.filter(function (p) { return p.shopsFor && byNo[p.shopsFor]; })
+      .sort(function (a, b) { return a.name.localeCompare(b.name); })
+      .map(function (p) {
+        var t = byNo[p.shopsFor];
+        var text = 'Hey ' + p.name.split(' ')[0] + '! 🎁 For our Kris Kringle, you chose ' + t.name + '.\n\n' +
+          'This is what they asked for:\n' +
+          t.wishes.map(function (w) { return '• ' + w.item + (w.link ? ' (' + w.link + ')' : ''); }).join('\n') +
+          '\n\nBudget is ₱' + budget + (settings && settings.partyDate ? ', and bring it on ' + settings.partyDate : '') + '. Keep it a secret! 🤫';
+        return { name: p.name, chose: t.name, text: text };
+      });
+  }
+
+  return { handle: handle, newGame: newGame, buildMessages: buildMessages, PUBLIC: PUBLIC, MAX_WISHES: MAX_WISHES, MIN_WISHES: MIN_WISHES };
 })();
 
 if (typeof module !== 'undefined') module.exports = KKCore;

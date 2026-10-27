@@ -555,7 +555,24 @@ var KKCore = (function () {
     }
   }
 
-  return { handle: handle, newGame: newGame, PUBLIC: PUBLIC, MAX_WISHES: MAX_WISHES, MIN_WISHES: MIN_WISHES };
+  // "Hey Ana, you chose Ben Santos. This is what they asked for: ..."
+  function buildMessages(players, settings) {
+    var byNo = {};
+    players.forEach(function (p) { if (p.mystery) byNo[p.mystery] = p; });
+    var budget = (settings && settings.budget) || 500;
+    return players.filter(function (p) { return p.shopsFor && byNo[p.shopsFor]; })
+      .sort(function (a, b) { return a.name.localeCompare(b.name); })
+      .map(function (p) {
+        var t = byNo[p.shopsFor];
+        var text = 'Hey ' + p.name.split(' ')[0] + '! 🎁 For our Kris Kringle, you chose ' + t.name + '.\n\n' +
+          'This is what they asked for:\n' +
+          t.wishes.map(function (w) { return '• ' + w.item + (w.link ? ' (' + w.link + ')' : ''); }).join('\n') +
+          '\n\nBudget is ₱' + budget + (settings && settings.partyDate ? ', and bring it on ' + settings.partyDate : '') + '. Keep it a secret! 🤫';
+        return { name: p.name, chose: t.name, text: text };
+      });
+  }
+
+  return { handle: handle, newGame: newGame, buildMessages: buildMessages, PUBLIC: PUBLIC, MAX_WISHES: MAX_WISHES, MIN_WISHES: MIN_WISHES };
 })();
 
 
@@ -668,9 +685,92 @@ function run_(op, payload) {
   // Every request can write (names are drawn automatically at the deadline), so all take the lock.
   var lock = LockService.getScriptLock();
   if (!lock.tryLock(20000)) return { ok: false, error: 'The site is busy — please try again in a few seconds.' };
-  try { return KKCore.handle(SheetDB, sha256_, op, payload); }
-  finally { lock.releaseLock(); }
+  var out;
+  try {
+    if (op === 'emailMaster') {
+      var st = SheetDB.getSettings();
+      if (!st.adminPassword || String(payload.password || '') !== String(st.adminPassword)) return { ok: false, error: 'Wrong organizer password.' };
+      out = { ok: true, data: { sentTo: emailMasterList_() } };
+    } else {
+      out = KKCore.handle(SheetDB, sha256_, op, payload);
+    }
+  } finally { lock.releaseLock(); }
+  try { afterDraw_(); } catch (e) {}
+  return out;
 }
+
+/* ---------- Master list + messages, emailed to you once names are drawn ---------- */
+
+function drawKey_(players) {
+  return sha256_(players.map(function (p) { return p.id + '>' + p.shopsFor; }).sort().join('|'));
+}
+
+// Runs after every request and every 10 minutes: once a draw exists, write the
+// Messages tab and email the organizer, exactly once per draw.
+function afterDraw_() {
+  var s = SheetDB.getSettings();
+  var props = PropertiesService.getScriptProperties();
+  if (s.phase === 'signup') { props.deleteProperty('EMAILED_DRAW'); return; }
+  var players = SheetDB.getPlayers();
+  var key = drawKey_(players);
+  if (props.getProperty('EMAILED_DRAW') === key) return;
+  emailMasterList_();
+  props.setProperty('EMAILED_DRAW', key);
+}
+
+function writeMessagesTab_(msgs) {
+  var ss = ss_();
+  var sh = ss.getSheetByName('Messages') || ss.insertSheet('Messages');
+  sh.clear();
+  sh.getRange(1, 1, 1, 3).setValues([['Send to', 'They chose', 'Message (copy and send)']]).setFontWeight('bold');
+  if (msgs.length) sh.getRange(2, 1, msgs.length, 3).setValues(msgs.map(function (m) { return [m.name, m.chose, m.text]; }));
+  sh.setColumnWidth(1, 170); sh.setColumnWidth(2, 170); sh.setColumnWidth(3, 520);
+  sh.getRange('C:C').setWrap(true);
+  sh.setFrozenRows(1);
+}
+
+function emailMasterList_() {
+  var s = SheetDB.getSettings();
+  var players = SheetDB.getPlayers().sort(function (a, b) { return a.name.localeCompare(b.name); });
+  var msgs = KKCore.buildMessages(players, s);
+  writeMessagesTab_(msgs);
+  var byNo = {};
+  players.forEach(function (p) { if (p.mystery) byNo[p.mystery] = p; });
+  var esc = function (t) { return String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); };
+  var html = '<h2>' + esc(s.eventName) + ': Kris Kringle master list</h2>' +
+    '<table cellpadding="6" style="border-collapse:collapse;font-family:Arial,sans-serif;font-size:14px">' +
+    '<tr style="background:#b3342a;color:#fff"><th align="left">Name</th><th align="left">Their wishlist</th><th align="left">Buying for</th></tr>' +
+    players.map(function (p) {
+      var t = byNo[p.shopsFor];
+      return '<tr style="border-bottom:1px solid #ddd"><td valign="top"><b>' + esc(p.name) + '</b></td><td valign="top">' +
+        p.wishes.map(function (w) { return esc(w.item) + (w.link ? ' (<a href="' + esc(w.link) + '">link</a>)' : ''); }).join('<br>') +
+        '</td><td valign="top"><b>' + (t ? esc(t.name) : '') + '</b></td></tr>';
+    }).join('') + '</table>' +
+    '<h2 style="margin-top:28px">Messages to send</h2>' +
+    msgs.map(function (m) {
+      return '<p style="margin:18px 0 4px"><b>To ' + esc(m.name) + ':</b></p>' +
+        '<div style="white-space:pre-wrap;background:#f6efe0;padding:12px;border-radius:6px;font-family:Arial,sans-serif">' + esc(m.text) + '</div>';
+    }).join('') +
+    '<p style="color:#777;margin-top:24px">These are also in the Messages tab of your Google Sheet.</p>';
+  var text = 'MASTER LIST\n\n' + players.map(function (p) {
+    var t = byNo[p.shopsFor];
+    return p.name + (t ? ' -> buying for ' + t.name : '') + '\n  ' + p.wishes.map(function (w) { return w.item; }).join('\n  ');
+  }).join('\n\n') + '\n\nMESSAGES\n\n' + msgs.map(function (m) { return 'To ' + m.name + ':\n' + m.text; }).join('\n\n----\n\n');
+  var to = Session.getEffectiveUser().getEmail();
+  MailApp.sendEmail({ to: to, subject: s.eventName + ': Kris Kringle master list + messages', body: text, htmlBody: html });
+  return to;
+}
+
+// Every 10 minutes: draws names once the deadline passes (even if nobody visits the site), then emails you.
+function checkDeadline() {
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(20000)) return;
+  try { KKCore.handle(SheetDB, sha256_, 'info', {}); } finally { lock.releaseLock(); }
+  afterDraw_();
+}
+
+// Run this by hand any time to get the master list emailed to you again.
+function sendMasterListNow() { emailMasterList_(); }
 
 function doGet(e) {
   var p = (e && e.parameter) || {};
@@ -689,6 +789,8 @@ function doPost(e) {
  */
 function setup() {
   var ss = ss_();
+  ScriptApp.getProjectTriggers().forEach(function (t) { if (t.getHandlerFunction() === 'checkDeadline') ScriptApp.deleteTrigger(t); });
+  ScriptApp.newTrigger('checkDeadline').timeBased().everyMinutes(10).create();
   var players = ss.getSheetByName(SHEET_PLAYERS) || ss.insertSheet(SHEET_PLAYERS);
   players.getRange(1, 1, 1, PLAYER_HEADERS.length).setValues([PLAYER_HEADERS])
     .setFontWeight('bold').setBackground('#0f3d2e').setFontColor('#ffffff');

@@ -556,3 +556,8 @@ table.ml td { vertical-align: top; }
   table.ml th, table.ml td { border-color: #bbb; }
   .ml-for { color: #111; }
 }
+
+/* ---------- Messages to send ---------- */
+.msg { border-top: 1px dashed #d4c4a4; padding: 14px 0 6px; }
+.msg-text { white-space: pre-wrap; font-family: var(--sans); font-size: .95rem; line-height: 1.5; background: #fbf6ea; border: 1px solid #e3d6bb; border-radius: 6px; padding: 12px 14px; margin: 10px 0 4px; }
+.btn.copied { background: var(--pine); border-color: var(--pine); color: var(--cream); }
