@@ -205,6 +205,17 @@ var KKCore = (function () {
   }
   var PIN_TAKEN = 'That PIN is already taken. Please pick a different 4-digit PIN.';
 
+  // Unique player id, checked against everyone already signed up.
+  function newId(players) {
+    var taken = {};
+    players.forEach(function (p) { taken[p.id] = 1; });
+    var id;
+    do {
+      id = 'p' + Date.now().toString(36) + Math.floor(Math.random() * 1e9).toString(36) + Math.floor(Math.random() * 1e9).toString(36);
+    } while (taken[id]);
+    return id;
+  }
+
   function findPlayer(players, name) {
     var k = key(name);
     for (var i = 0; i < players.length; i++) if (key(players[i].name) === k) return players[i];
@@ -370,7 +381,7 @@ var KKCore = (function () {
       var pk = pinKey(hash, s, pin);
       if (pinTaken(players, pk)) fail(PIN_TAKEN);
       players.push({
-        id: 'p' + Date.now().toString(36) + Math.floor(Math.random() * 1e6).toString(36),
+        id: newId(players),
         name: name,
         pinHash: pinHash(hash, s, name, pin),
         pinKey: pk,
