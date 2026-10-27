@@ -288,8 +288,7 @@ var KKCore = (function () {
     var out = { name: me.name, wishes: me.wishes, settings: publicSettings(s, players.length), shoppingFor: null, testMode: !!testMode };
     if (s.phase !== 'signup' && me.shopsFor) {
       var target = byMystery(players, me.shopsFor);
-      if (target) out.shoppingFor = { no: target.mystery, alias: target.alias || '', wishes: target.wishes };
-      if (target && testMode) out.secretName = target.name;
+      if (target) out.shoppingFor = { no: target.mystery, name: target.name, wishes: target.wishes };
     }
     if (s.phase === 'revealed' || testMode) { out.myMystery = me.mystery; out.myAlias = me.alias || ''; }
     return out;
@@ -705,7 +704,7 @@ function setup() {
       ['eventName', 'Favor Christmas Party 2027', 'Shown at the top of the site'],
       ['budget', 500, 'Gift budget in pesos'],
       ['opensAt', '', 'When sign-ups open (Manila time). Change it from the website\'s Organizer page.'],
-      ['deadline', "'2026-10-30T23:59:00+08:00", 'Wishlist deadline (Manila time). Change it from the website\'s Organizer page.'],
+      ['deadline', "'2026-10-27T23:59:00+08:00", 'Wishlist deadline (Manila time). Change it from the website\'s Organizer page.'],
       ['partyDate', '', 'Party date, e.g. Dec 19'],
       ['phase', 'signup', 'Managed by the website: signup / drawn / revealed'],
       ['salt', Utilities.getUuid(), 'Used to scramble PINs. Do not change after people sign up.']

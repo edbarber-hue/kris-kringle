@@ -147,8 +147,7 @@ var KKCore = (function () {
     var out = { name: me.name, wishes: me.wishes, settings: publicSettings(s, players.length), shoppingFor: null, testMode: !!testMode };
     if (s.phase !== 'signup' && me.shopsFor) {
       var target = byMystery(players, me.shopsFor);
-      if (target) out.shoppingFor = { no: target.mystery, alias: target.alias || '', wishes: target.wishes };
-      if (target && testMode) out.secretName = target.name;
+      if (target) out.shoppingFor = { no: target.mystery, name: target.name, wishes: target.wishes };
     }
     if (s.phase === 'revealed' || testMode) { out.myMystery = me.mystery; out.myAlias = me.alias || ''; }
     return out;

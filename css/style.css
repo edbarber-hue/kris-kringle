@@ -539,3 +539,20 @@ body.walking.stage-mode .trivia-stage { padding-bottom: 84px; }
 body.walking.stage-mode .ts-intro { padding-bottom: 80px; }
 @media (max-width: 640px) { body.walking.stage-mode .ts-intro, body.walking.stage-mode .trivia-stage { padding-bottom: 116px; } }
 .brief .hint-red { color: var(--red); font-weight: 800; }
+
+/* ---------- Master list ---------- */
+table.ml td { vertical-align: top; }
+.ml-n { width: 26px; color: var(--ink-soft); font-size: .85rem; }
+.ml-name { min-width: 130px; }
+.ml-wish ul { margin: 0; padding-left: 1.1em; }
+.ml-wish li { margin-bottom: 2px; }
+.ml-wish a { color: var(--red); font-size: .85rem; }
+.ml-for { min-width: 120px; color: var(--red); }
+.ml-act { white-space: nowrap; text-align: right; }
+@media print {
+  body { background: #fff !important; color: #111; }
+  .card.master { box-shadow: none; background: #fff; padding: 0; }
+  .card.master h2 { color: #111; }
+  table.ml th, table.ml td { border-color: #bbb; }
+  .ml-for { color: #111; }
+}
