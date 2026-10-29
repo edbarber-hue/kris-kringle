@@ -147,7 +147,7 @@ var KK_ANIMALS = [
  *   2. In the browser, for Demo Mode (no Google Sheet needed)
  *
  * It never touches storage directly: it gets a `db` adapter and a `hash` function.
- *   db.getPlayers()        -> [{id, name, pinHash, wishes:[{item, link}], mystery, alias, shopsFor, joinedAt}]
+ *   db.getPlayers()        -> [{id, name, email, pinHash, wishes:[{item, link}], mystery, alias, shopsFor, joinedAt}]
  *   db.savePlayers(list)
  *   db.getSettings()       -> {phase, budget, eventName, deadline (ISO date-time), partyDate, adminPassword, salt}
  *   db.saveSettings(obj)
@@ -185,6 +185,14 @@ var KKCore = (function () {
     }
     if (out.length < MIN_WISHES) fail('Please list at least ' + MIN_WISHES + ' gift ideas.');
     return out;
+  }
+
+  // Email is required for new sign-ups; people who joined before it existed can add it when they edit.
+  function cleanEmail(e, required) {
+    e = clean(e, 120).toLowerCase();
+    if (!e) { if (required) fail('Please enter your email so we can send you who you got.'); return ''; }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e)) fail('That email doesn\'t look right. Check it and try again.');
+    return e;
   }
 
   function checkPin(pin) {
@@ -296,7 +304,7 @@ var KKCore = (function () {
 
   function meView(db, me, players, testMode) {
     var s = db.getSettings();
-    var out = { name: me.name, wishes: me.wishes, settings: publicSettings(s, players.length), shoppingFor: null, testMode: !!testMode };
+    var out = { name: me.name, email: me.email || '', wishes: me.wishes, settings: publicSettings(s, players.length), shoppingFor: null, testMode: !!testMode };
     if (s.phase !== 'signup' && me.shopsFor) {
       var target = byMystery(players, me.shopsFor);
       if (target) out.shoppingFor = { no: target.mystery, name: target.name, wishes: target.wishes };
@@ -348,6 +356,7 @@ var KKCore = (function () {
       var pin = checkPin(p.pin);
       if (notOpenYet(s) && !isAdmin(s, p)) fail('Sign-ups aren\'t open yet. Come back when the countdown ends.');
       var wishes = cleanWishes(p.wishes);
+      var email = cleanEmail(p.email, false);
       var players = db.getPlayers();
       // Renaming: the person is logged in under their old name and changed it.
       if (p.oldName && key(p.oldName) !== key(name)) {
@@ -360,6 +369,7 @@ var KKCore = (function () {
         old.pinHash = pinHash(hash, s, name, pin);
         old.pinKey = pinKey(hash, s, pin);
         old.wishes = wishes;
+        if (email) old.email = email;
         db.savePlayers(players);
         return { ok: true, updated: true, renamed: true, name: name };
       }
@@ -371,6 +381,7 @@ var KKCore = (function () {
         if (s.phase === 'revealed') fail('The party is over — wishlists are locked.');
         if (editsClosed(s)) fail('The deadline has passed, so wishlists are locked. Ask the organizer if you need a change.');
         existing.wishes = wishes;
+        if (email) existing.email = email;
         if (!existing.pinKey) existing.pinKey = pinKey(hash, s, pin);
         db.savePlayers(players);
         return { ok: true, updated: true, name: existing.name };
@@ -378,11 +389,13 @@ var KKCore = (function () {
       if (s.phase !== 'signup') fail('Sign-ups are closed — the names have already been drawn. Ask the organizer to reopen sign-ups.');
       if (!/\S+\s+\S+/.test(name)) fail('Please enter your full name, first and last. You\'ll log in with it.');
       if (editsClosed(s)) fail('Sign-ups closed when the deadline passed. Ask the organizer if you still want in.');
+      email = cleanEmail(p.email, true);
       var pk = pinKey(hash, s, pin);
       if (pinTaken(players, pk)) fail(PIN_TAKEN);
       players.push({
         id: newId(players),
         name: name,
+        email: email,
         pinHash: pinHash(hash, s, name, pin),
         pinKey: pk,
         wishes: wishes,
@@ -454,7 +467,7 @@ var KKCore = (function () {
         players: players.map(function (x) {
           var target = x.shopsFor ? byMystery(players, x.shopsFor) : null;
           return {
-            id: x.id, name: x.name, wishes: x.wishes, mystery: x.mystery, alias: x.alias || '',
+            id: x.id, name: x.name, email: x.email || '', wishes: x.wishes, mystery: x.mystery, alias: x.alias || '',
             shopsFor: x.shopsFor, shopsForName: target ? target.name : '', joinedAt: x.joinedAt
           };
         })
@@ -579,7 +592,7 @@ var KKCore = (function () {
           'This is what they asked for:\n' +
           t.wishes.map(function (w) { return '• ' + w.item + (w.link ? ' (' + w.link + ')' : ''); }).join('\n') +
           '\n\nBudget is ₱' + budget + (settings && settings.partyDate ? ', and bring it on ' + settings.partyDate : '') + '. Keep it a secret! 🤫';
-        return { name: p.name, chose: t.name, text: text };
+        return { name: p.name, email: p.email || '', chose: t.name, text: text };
       });
   }
 
@@ -592,8 +605,8 @@ var KKCore = (function () {
 var SHEET_PLAYERS = 'Players';
 var SHEET_SETTINGS = 'Settings';
 var SHEET_TRIVIA = 'Trivia';
-// Columns: who they are, who they're giving to, their wishlist, then technical columns (don't edit).
-var PLAYER_HEADERS = ['WHO THEY ARE', 'WHO THEY\'RE GIVING TO',
+// Columns: who they are, who they're giving to, their email, their wishlist, then technical columns (don't edit).
+var PLAYER_HEADERS = ['WHO THEY ARE', 'WHO THEY\'RE GIVING TO', 'Email',
   'Wish 1', 'Wish 2', 'Wish 3', 'Wish 4', 'Wish 5', 'Signed up',
   'Draw # (do not edit)', 'Alias (unused)', 'Gives to draw # (do not edit)', 'ID (do not edit)', 'PIN hash (do not edit)', 'PIN key (do not edit)'];
 
@@ -619,7 +632,7 @@ function formatPlayers_(sh) {
   sh.getRange(1, 1, 1, PLAYER_HEADERS.length).setValues([PLAYER_HEADERS]).setFontWeight('bold')
     .setBackground('#0f3d2e').setFontColor('#ffffff');
   sh.getRange(1, 1, 1, 2).setBackground('#b3342a');
-  sh.getRange(1, 9, 1, 6).setBackground('#9e9e9e');
+  sh.getRange(1, 10, 1, 6).setBackground('#9e9e9e');
   sh.setFrozenRows(1);
   sh.setFrozenColumns(2);
 }
@@ -629,15 +642,18 @@ var SheetDB = {
     var sh = sheet_(SHEET_PLAYERS);
     var n = sh.getLastRow() - 1;
     if (n < 1) return [];
+    // Sheets saved before the Email column existed have 'Wish 1' in column C: read them shifted by one.
+    var o = String(sh.getRange(1, 3).getValue()).trim() === 'Email' ? 1 : 0;
     return sh.getRange(2, 1, n, PLAYER_HEADERS.length).getValues()
-      .filter(function (r) { return String(r[0]).trim() && r[11]; })
+      .filter(function (r) { return String(r[0]).trim() && r[11 + o]; })
       .map(function (r) {
         var wishes = [];
-        for (var i = 2; i <= 6; i++) { var w = cellToWish_(r[i]); if (w) wishes.push(w); }
+        for (var i = 2 + o; i <= 6 + o; i++) { var w = cellToWish_(r[i]); if (w) wishes.push(w); }
         return {
-          name: String(r[0]).trim(), mystery: Number(r[8]) || 0, alias: String(r[9] || ''), shopsFor: Number(r[10]) || 0,
-          wishes: wishes, joinedAt: r[7] instanceof Date ? r[7].toISOString() : String(r[7]),
-          id: String(r[11]), pinHash: String(r[12]), pinKey: String(r[13] || '')
+          name: String(r[0]).trim(), email: o ? String(r[2] || '').trim() : '',
+          mystery: Number(r[8 + o]) || 0, alias: String(r[9 + o] || ''), shopsFor: Number(r[10 + o]) || 0,
+          wishes: wishes, joinedAt: r[7 + o] instanceof Date ? r[7 + o].toISOString() : String(r[7 + o]),
+          id: String(r[11 + o]), pinHash: String(r[12 + o]), pinKey: String(r[13 + o] || '')
         };
       });
   },
@@ -647,7 +663,7 @@ var SheetDB = {
     list.forEach(function (p) { if (p.mystery) byNo[p.mystery] = p.name; });
     var rows = list.map(function (p) {
       var w = p.wishes || [];
-      return [p.name, p.shopsFor ? (byNo[p.shopsFor] || '') : '',
+      return [p.name, p.shopsFor ? (byNo[p.shopsFor] || '') : '', p.email || '',
         wishToCell_(w[0]), wishToCell_(w[1]), wishToCell_(w[2]), wishToCell_(w[3]), wishToCell_(w[4]),
         p.joinedAt, p.mystery || '', p.alias || '', p.shopsFor || '', p.id, p.pinHash, p.pinKey || ''];
     });
@@ -715,6 +731,11 @@ function run_(op, payload) {
       var st = SheetDB.getSettings();
       if (!st.adminPassword || String(payload.password || '') !== String(st.adminPassword)) return { ok: false, error: 'Wrong organizer password.' };
       out = { ok: true, data: { sentTo: emailMasterList_() } };
+    } else if (op === 'emailEveryone') {
+      var st2 = SheetDB.getSettings();
+      if (!st2.adminPassword || String(payload.password || '') !== String(st2.adminPassword)) return { ok: false, error: 'Wrong organizer password.' };
+      if (st2.phase === 'signup') return { ok: false, error: 'Draw names first.' };
+      out = { ok: true, data: emailEveryone_() };
     } else {
       out = KKCore.handle(SheetDB, sha256_, op, payload);
     }
@@ -785,6 +806,21 @@ function emailMasterList_() {
   return to;
 }
 
+// Sends each person their own "you chose ___" message, from your Gmail.
+function emailEveryone_() {
+  var s = SheetDB.getSettings();
+  var msgs = KKCore.buildMessages(SheetDB.getPlayers(), s);
+  var sent = 0, missing = [], failed = [];
+  msgs.forEach(function (m) {
+    if (!m.email) { missing.push(m.name); return; }
+    try {
+      MailApp.sendEmail({ to: m.email, subject: s.eventName + ': your Kris Kringle 🎁', body: m.text, name: s.eventName });
+      sent++;
+    } catch (e) { failed.push(m.name); }
+  });
+  return { sent: sent, missing: missing, failed: failed, quotaLeft: MailApp.getRemainingDailyQuota() };
+}
+
 // Every 10 minutes: draws names once the deadline passes (even if nobody visits the site), then emails you.
 function checkDeadline() {
   var lock = LockService.getScriptLock();
@@ -817,8 +853,8 @@ function setup() {
   ScriptApp.newTrigger('checkDeadline').timeBased().everyMinutes(10).create();
   var players = ss.getSheetByName(SHEET_PLAYERS) || ss.insertSheet(SHEET_PLAYERS);
   formatPlayers_(players);
-  players.setColumnWidths(1, 2, 200);
-  players.setColumnWidths(3, 5, 220);
+  players.setColumnWidths(1, 3, 200);
+  players.setColumnWidths(4, 5, 220);
 
   var settings = ss.getSheetByName(SHEET_SETTINGS) || ss.insertSheet(SHEET_SETTINGS);
   if (settings.getLastRow() < 1) {

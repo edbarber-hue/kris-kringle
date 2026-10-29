@@ -6,7 +6,7 @@
  *   2. In the browser, for Demo Mode (no Google Sheet needed)
  *
  * It never touches storage directly: it gets a `db` adapter and a `hash` function.
- *   db.getPlayers()        -> [{id, name, pinHash, wishes:[{item, link}], mystery, alias, shopsFor, joinedAt}]
+ *   db.getPlayers()        -> [{id, name, email, pinHash, wishes:[{item, link}], mystery, alias, shopsFor, joinedAt}]
  *   db.savePlayers(list)
  *   db.getSettings()       -> {phase, budget, eventName, deadline (ISO date-time), partyDate, adminPassword, salt}
  *   db.saveSettings(obj)
@@ -44,6 +44,14 @@ var KKCore = (function () {
     }
     if (out.length < MIN_WISHES) fail('Please list at least ' + MIN_WISHES + ' gift ideas.');
     return out;
+  }
+
+  // Email is required for new sign-ups; people who joined before it existed can add it when they edit.
+  function cleanEmail(e, required) {
+    e = clean(e, 120).toLowerCase();
+    if (!e) { if (required) fail('Please enter your email so we can send you who you got.'); return ''; }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e)) fail('That email doesn\'t look right. Check it and try again.');
+    return e;
   }
 
   function checkPin(pin) {
@@ -155,7 +163,7 @@ var KKCore = (function () {
 
   function meView(db, me, players, testMode) {
     var s = db.getSettings();
-    var out = { name: me.name, wishes: me.wishes, settings: publicSettings(s, players.length), shoppingFor: null, testMode: !!testMode };
+    var out = { name: me.name, email: me.email || '', wishes: me.wishes, settings: publicSettings(s, players.length), shoppingFor: null, testMode: !!testMode };
     if (s.phase !== 'signup' && me.shopsFor) {
       var target = byMystery(players, me.shopsFor);
       if (target) out.shoppingFor = { no: target.mystery, name: target.name, wishes: target.wishes };
@@ -207,6 +215,7 @@ var KKCore = (function () {
       var pin = checkPin(p.pin);
       if (notOpenYet(s) && !isAdmin(s, p)) fail('Sign-ups aren\'t open yet. Come back when the countdown ends.');
       var wishes = cleanWishes(p.wishes);
+      var email = cleanEmail(p.email, false);
       var players = db.getPlayers();
       // Renaming: the person is logged in under their old name and changed it.
       if (p.oldName && key(p.oldName) !== key(name)) {
@@ -219,6 +228,7 @@ var KKCore = (function () {
         old.pinHash = pinHash(hash, s, name, pin);
         old.pinKey = pinKey(hash, s, pin);
         old.wishes = wishes;
+        if (email) old.email = email;
         db.savePlayers(players);
         return { ok: true, updated: true, renamed: true, name: name };
       }
@@ -230,6 +240,7 @@ var KKCore = (function () {
         if (s.phase === 'revealed') fail('The party is over — wishlists are locked.');
         if (editsClosed(s)) fail('The deadline has passed, so wishlists are locked. Ask the organizer if you need a change.');
         existing.wishes = wishes;
+        if (email) existing.email = email;
         if (!existing.pinKey) existing.pinKey = pinKey(hash, s, pin);
         db.savePlayers(players);
         return { ok: true, updated: true, name: existing.name };
@@ -237,11 +248,13 @@ var KKCore = (function () {
       if (s.phase !== 'signup') fail('Sign-ups are closed — the names have already been drawn. Ask the organizer to reopen sign-ups.');
       if (!/\S+\s+\S+/.test(name)) fail('Please enter your full name, first and last. You\'ll log in with it.');
       if (editsClosed(s)) fail('Sign-ups closed when the deadline passed. Ask the organizer if you still want in.');
+      email = cleanEmail(p.email, true);
       var pk = pinKey(hash, s, pin);
       if (pinTaken(players, pk)) fail(PIN_TAKEN);
       players.push({
         id: newId(players),
         name: name,
+        email: email,
         pinHash: pinHash(hash, s, name, pin),
         pinKey: pk,
         wishes: wishes,
@@ -313,7 +326,7 @@ var KKCore = (function () {
         players: players.map(function (x) {
           var target = x.shopsFor ? byMystery(players, x.shopsFor) : null;
           return {
-            id: x.id, name: x.name, wishes: x.wishes, mystery: x.mystery, alias: x.alias || '',
+            id: x.id, name: x.name, email: x.email || '', wishes: x.wishes, mystery: x.mystery, alias: x.alias || '',
             shopsFor: x.shopsFor, shopsForName: target ? target.name : '', joinedAt: x.joinedAt
           };
         })
@@ -438,7 +451,7 @@ var KKCore = (function () {
           'This is what they asked for:\n' +
           t.wishes.map(function (w) { return '• ' + w.item + (w.link ? ' (' + w.link + ')' : ''); }).join('\n') +
           '\n\nBudget is ₱' + budget + (settings && settings.partyDate ? ', and bring it on ' + settings.partyDate : '') + '. Keep it a secret! 🤫';
-        return { name: p.name, chose: t.name, text: text };
+        return { name: p.name, email: p.email || '', chose: t.name, text: text };
       });
   }
 

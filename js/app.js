@@ -210,6 +210,8 @@
           '<form id="joinForm" novalidate>' +
             '<label for="jName">Your full name <span class="hint">first and last, you\'ll log in with it</span></label>' +
             '<input id="jName" name="name" maxlength="60" autocomplete="name" value="' + esc(sess ? sess.name : '') + '">' +
+            '<label for="jEmail">Your email <span class="hint">we\'ll email you who you got</span></label>' +
+            '<input id="jEmail" name="email" type="email" maxlength="120" autocomplete="email" inputmode="email" placeholder="you@example.com" value="' + esc(sess && sess.email ? sess.email : '') + '">' +
             (editing ? '<p class="small muted" style="margin:6px 0 0">Not ' + esc(sess.name.split(' ')[0]) + '? <a href="#" id="notMe">Start fresh</a></p>' : '') +
             '<label for="jPin">Pick a 4-digit PIN <span class="hint">to log in later</span></label>' +
             '<input id="jPin" name="pin" class="pin-input" inputmode="numeric" maxlength="4" autocomplete="off" type="password" value="' + esc(sess ? sess.pin : '') + '">' +
@@ -242,11 +244,11 @@
         var items = $$('.wish-row', e.target).map(function (r) {
           return { item: r.querySelector('[name=item]').value, link: r.querySelector('[name=link]').value };
         });
-        var payload = { name: $('#jName').value, pin: $('#jPin').value, wishes: items };
+        var payload = { name: $('#jName').value, email: $('#jEmail').value, pin: $('#jPin').value, wishes: items };
         if (editing && sess && sess.name) payload.oldName = sess.name;
         busy(btn, true, 'Saving…');
         API.call('join', payload).then(function (r) {
-          store('me', { name: r.name, pin: payload.pin, wishes: items.filter(function (x) { return x.item.trim(); }) });
+          store('me', { name: r.name, email: payload.email.trim(), pin: payload.pin, wishes: items.filter(function (x) { return x.item.trim(); }) });
           confetti(90);
           if (r.updated && info && info.phase === 'drawn') {
             render('<div class="card center pop"><h2>Saved</h2><p class="muted">' + (r.renamed ? 'From now on, log in as ' + esc(r.name) + '. ' : '') + 'Your Kris Kringle will see the new list.</p><a class="btn" href="#/me">My page</a></div>');
@@ -299,7 +301,7 @@
       var p = { name: $('#mName').value, pin: $('#mPin').value };
       busy(btn, true, 'Checking…');
       API.call('me', p).then(function (d) {
-        store('me', { name: d.name, pin: p.pin, wishes: d.wishes });
+        store('me', { name: d.name, email: d.email || '', pin: p.pin, wishes: d.wishes });
         meDashboard(d);
       }).catch(function (err) { busy(btn, false); showError('#mErr', err); });
     });
@@ -307,7 +309,7 @@
 
   function meDashboard(d) {
     var test = !!d.testMode;
-    if (!test) { var sess = store('me') || {}; store('me', { name: d.name, pin: sess.pin, wishes: d.wishes }); }
+    if (!test) { var sess = store('me') || {}; store('me', { name: d.name, email: d.email || '', pin: sess.pin, wishes: d.wishes }); }
     var s = d.settings, html = '';
     if (test) html += '<div class="test-bar">Viewing as <b>' + esc(d.name) + '</b>. This is exactly what they see. <a href="#/organizer">Back to the master list</a></div>';
 
@@ -377,7 +379,7 @@
 
   function comeBackLine(deadline) {
     var t = Date.parse(deadline);
-    if (isNaN(t)) return 'Come back after names are drawn to see who you\'re buying for.';
+    if (isNaN(t)) return 'Once names are drawn, you\'ll get an email with who you\'re buying for. You can also log in here to see it.';
     return 'Come back after ' + esc(fmtDeadline(deadline)) + ' to see who you\'re buying for and their wishlist.';
   }
 
@@ -470,9 +472,12 @@
     return '<div class="card no-print msgs"><div class="row"><h2 style="margin:0">Messages to send</h2><span class="spacer"></span>' +
         '<button class="btn secondary small" id="copyAllMsgs">Copy all</button>' +
         (API.demo ? '' : ' <button class="btn secondary small" id="emailMaster">Email me everything</button>') + '</div>' +
-      '<p class="muted small" style="margin:6px 0 14px">Copy each one and send it to that person on Messenger or Viber.</p>' +
+      '<div class="email-all"><div><b>Email everyone who they got</b><div class="small muted">Sends each person only their own message, from your Gmail.' +
+        (msgs.some(function (m) { return !m.email; }) ? ' ' + msgs.filter(function (m) { return !m.email; }).length + ' people have no email, so copy theirs below.' : '') + '</div></div>' +
+        '<button class="btn small" id="emailEveryone">Email everyone</button></div>' +
+      '<p class="muted small" style="margin:6px 0 14px">Or copy each one and send it on Messenger or Viber.</p>' +
       msgs.map(function (m, i) {
-        return '<div class="msg"><div class="row"><b>To ' + esc(m.name) + '</b><span class="spacer"></span>' +
+        return '<div class="msg"><div class="row"><b>To ' + esc(m.name) + '</b>' + (m.email ? ' <span class="small muted">' + esc(m.email) + '</span>' : '') + '<span class="spacer"></span>' +
           '<button class="btn small" data-msg="' + i + '">Copy</button></div>' +
           '<pre class="msg-text">' + esc(m.text) + '</pre></div>';
       }).join('') + '</div>';
@@ -483,6 +488,21 @@
     $$('[data-msg]').forEach(function (b) { b.onclick = function () { copyText(msgs[Number(b.dataset.msg)].text, b); }; });
     var all = $('#copyAllMsgs');
     if (all) all.onclick = function () { copyText(msgs.map(function (m) { return 'To ' + m.name + ':\n' + m.text; }).join('\n\n----------\n\n'), all); };
+    var ee = $('#emailEveryone');
+    if (ee) ee.onclick = function () {
+      var n = msgs.filter(function (m) { return m.email; }).length;
+      if (API.demo) { tell('In the live site, this emails ' + n + ' people their own message. (Demo mode doesn\'t send email.)'); return; }
+      ask('Email ' + n + ' people now? Each person gets only their own "you chose ___" message, sent from your Gmail.', 'Send emails').then(function (yes) {
+        if (!yes) return;
+        busy(ee, true, 'Sending…');
+        API.call('emailEveryone', { password: adminPw() }).then(function (r) {
+          busy(ee, false); ee.textContent = 'Sent ✓';
+          tell('Sent ' + r.sent + ' email' + (r.sent === 1 ? '' : 's') + '.' +
+            (r.missing.length ? ' No email for: ' + r.missing.join(', ') + '. Copy their messages below.' : '') +
+            (r.failed.length ? ' Couldn\'t send to: ' + r.failed.join(', ') + '.' : ''));
+        }).catch(function (e) { busy(ee, false); tell(e.message); });
+      });
+    };
     var em = $('#emailMaster');
     if (em) em.onclick = function () {
       busy(em, true, 'Sending…');
@@ -510,7 +530,7 @@
     var rows = sorted.map(function (p, i) {
       return '<tr>' +
         '<td class="ml-n">' + (i + 1) + '</td>' +
-        '<td class="ml-name"><b>' + esc(p.name) + '</b></td>' +
+        '<td class="ml-name"><b>' + esc(p.name) + '</b>' + (p.email ? '<div class="ml-email">' + esc(p.email) + '</div>' : '<div class="ml-email muted">no email</div>') + '</td>' +
         '<td class="ml-wish"><ul>' + p.wishes.map(function (w) {
           return '<li>' + esc(w.item) + (w.link ? ' <a href="' + esc(w.link) + '" target="_blank" rel="noopener">link</a>' : '') + '</li>';
         }).join('') + '</ul></td>' +
