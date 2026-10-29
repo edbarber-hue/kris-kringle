@@ -226,8 +226,9 @@
             '<label for="jEmail">Your email <span class="hint">we\'ll email you who you got</span></label>' +
             '<input id="jEmail" name="email" type="email" maxlength="120" autocomplete="email" inputmode="email" placeholder="you@example.com" value="' + esc(sess && sess.email ? sess.email : '') + '">' +
             (editing ? '<p class="small muted" style="margin:6px 0 0">Not ' + esc(sess.name.split(' ')[0]) + '? <a href="#" id="notMe">Start fresh</a></p>' : '') +
-            '<label for="jPin">Pick a 4-digit PIN <span class="hint">to log in later</span></label>' +
-            '<input id="jPin" name="pin" class="pin-input" inputmode="numeric" maxlength="4" autocomplete="off" type="password" value="' + esc(sess ? sess.pin : '') + '">' +
+            '<label for="jPin">Make your own 4-digit PIN <span class="hint">numbers only</span></label>' +
+            '<input id="jPin" name="pin" class="pin-input" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="••••" value="' + esc(sess ? sess.pin : '') + '">' +
+            '<div id="pinStatus" class="pin-status" aria-live="polite"></div>' +
             '<div class="pin-note"><b>Think of a 4-digit PIN.</b> This will be your code for future log ins.</div>' +
             '<label>Gift ideas <span class="hint">3 to 5, around ' + peso(d.budget) + ' each</span></label>' +
             '<div class="brief"><b>Be ultra specific.</b> Include color, size, brand, scent or flavor. ' +
@@ -239,6 +240,7 @@
           '</form>' +
         '</div>'
       );
+      bindPinInput($('#jPin'), $('#pinStatus'), function () { return $('#jName').value; });
       if ($('#notMe')) $('#notMe').onclick = function (e) { e.preventDefault(); store('me', null); viewJoin(); };
       var wl = $('#wishes');
       wl.addEventListener('click', function (e) {
@@ -257,7 +259,7 @@
         var items = $$('.wish-row', e.target).map(function (r) {
           return { item: r.querySelector('[name=item]').value, link: r.querySelector('[name=link]').value };
         });
-        var payload = { name: $('#jName').value, email: $('#jEmail').value, pin: $('#jPin').value, wishes: items };
+        var payload = { name: $('#jName').value, email: $('#jEmail').value, pin: digitsOnly($('#jPin').value), wishes: items };
         if (editing && sess && sess.name) payload.oldName = sess.name;
         busy(btn, true, 'Saving…');
         API.call('join', payload).then(function (r) {
@@ -280,7 +282,10 @@
             '</div>'
           );
           if ($('#remindBtn')) $('#remindBtn').onclick = function () { openRemind(info); };
-        }).catch(function (err) { busy(btn, false); showError('#jErr', err); });
+        }).catch(function (err) {
+          busy(btn, false); showError('#jErr', err);
+          if (/PIN/.test(err.message || '')) { pinMsg($('#pinStatus'), err.message, false); $('#jPin').focus(); $('#jPin').select(); }
+        });
       });
     }).catch(function (e) { render('<div class="error">' + esc(e.message) + '</div>'); });
   }
@@ -295,23 +300,53 @@
     API.call('me', { name: sess.name, pin: sess.pin }).then(meDashboard).catch(function () { store('me', null); meLogin(); });
   }
 
+  // ---------- PIN field helpers ----------
+  function digitsOnly(v) {
+    return String(v || '').replace(/[\uFF10-\uFF19]/g, function (c) { return String.fromCharCode(c.charCodeAt(0) - 0xFF10 + 48); })
+      .replace(/\D/g, '').slice(0, 4);
+  }
+  function pinMsg(box, text, ok) {
+    if (!box) return;
+    box.className = 'pin-status' + (text ? (ok ? ' ok' : ' bad') : '');
+    box.textContent = text || '';
+  }
+  // Keeps the box to 4 numbers and checks, as soon as 4 are typed, that nobody else has that PIN.
+  function bindPinInput(input, box, getName) {
+    if (!input) return;
+    var seq = 0;
+    var check = function () {
+      var v = digitsOnly(input.value);
+      if (input.value !== v) input.value = v;
+      if (v.length < 4) { pinMsg(box, v.length ? (4 - v.length) + ' more number' + (v.length === 3 ? '' : 's') : '', true); return; }
+      var mine = ++seq;
+      pinMsg(box, 'Checking…', true);
+      API.call('pinCheck', { pin: v, name: getName ? getName() : '' }).then(function (r) {
+        if (mine !== seq) return;
+        pinMsg(box, r.available ? '✓ This PIN is free. It\'s yours!' : r.message, r.available);
+      }).catch(function (e) { if (mine === seq) pinMsg(box, /PIN/.test(e.message) ? e.message : '', false); });
+    };
+    input.addEventListener('input', check);
+    if (input.value) check();
+  }
+
   function meLogin() {
     render(
       '<div class="card pop">' +
         '<h2>Log in</h2>' +
         '<form id="meForm" novalidate>' +
           '<label for="mName">Your full name</label><input id="mName" maxlength="60" autocomplete="name" placeholder="First and last name">' +
-          '<label for="mPin">Your PIN</label><input id="mPin" class="pin-input" inputmode="numeric" maxlength="4" type="password" autocomplete="off">' +
+          '<label for="mPin">Your PIN</label><input id="mPin" class="pin-input" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="off" autocorrect="off" spellcheck="false" placeholder="••••">' +
           '<div id="mErr" hidden></div>' +
           '<button class="btn block" style="margin-top:20px" type="submit">Log in</button>' +
         '</form>' +
         '<p class="small muted center" style="margin:16px 0 0">New here? <a href="#/join">Add your wishlist</a>. Forgot your PIN? Ask the organizer.</p>' +
       '</div>'
     );
+    $('#mPin').addEventListener('input', function () { var v = digitsOnly(this.value); if (this.value !== v) this.value = v; });
     $('#meForm').addEventListener('submit', function (e) {
       e.preventDefault();
       var btn = e.target.querySelector('button');
-      var p = { name: $('#mName').value, pin: $('#mPin').value };
+      var p = { name: $('#mName').value, pin: digitsOnly($('#mPin').value) };
       busy(btn, true, 'Checking…');
       API.call('me', p).then(function (d) {
         store('me', { name: d.name, email: d.email || '', pin: p.pin, wishes: d.wishes });

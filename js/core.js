@@ -55,8 +55,10 @@ var KKCore = (function () {
   }
 
   function checkPin(pin) {
-    pin = String(pin == null ? '' : pin).trim();
-    if (!/^\d{4}$/.test(pin)) fail('Your PIN must be exactly 4 digits.');
+    // Accept full-width digits (some phone keyboards) and ignore spaces or dashes.
+    pin = String(pin == null ? '' : pin).replace(/[\uFF10-\uFF19]/g, function (c) { return String.fromCharCode(c.charCodeAt(0) - 0xFF10 + 48); })
+      .replace(/[\s\-.]/g, '');
+    if (!/^\d{4}$/.test(pin)) fail('Your PIN must be exactly 4 numbers.');
     return pin;
   }
 
@@ -70,7 +72,7 @@ var KKCore = (function () {
     for (var i = 0; i < players.length; i++) if (players[i].pinKey === keyVal && players[i].id !== exceptId) return true;
     return false;
   }
-  var PIN_TAKEN = 'That PIN is already taken. Please pick a different 4-digit PIN.';
+  var PIN_TAKEN = 'This PIN is already taken. Choose a new one.';
 
   // Unique player id, checked against everyone already signed up.
   function newId(players) {
@@ -267,6 +269,18 @@ var KKCore = (function () {
       return { ok: true, updated: false, name: name };
     },
 
+    // Live check while someone types a PIN on the sign-up form. A PIN that already
+    // belongs to this same name (someone editing their own list) counts as free.
+    pinCheck: function (db, hash, p) {
+      var s = db.getSettings();
+      var pin = checkPin(p.pin);
+      var players = db.getPlayers();
+      var mine = p.name ? findPlayer(players, p.name) : null;
+      var own = mine && mine.pinHash === pinHash(hash, s, p.name, pin);
+      var taken = pinTaken(players, pinKey(hash, s, pin), own ? mine.id : null);
+      return { available: !taken, message: taken ? PIN_TAKEN : '' };
+    },
+
     me: function (db, hash, p) {
       var r = login(db, hash, p);
       return meView(db, r.me, r.players, false);
@@ -402,7 +416,7 @@ var KKCore = (function () {
       players.forEach(function (x) { if (x.id === p.id) me = x; });
       if (!me) fail('Player not found.');
       var rk = pinKey(hash, s, pin);
-      if (pinTaken(players, rk, me.id)) fail('Someone else already uses that PIN. Pick a different one.');
+      if (pinTaken(players, rk, me.id)) fail(PIN_TAKEN);
       me.pinHash = pinHash(hash, s, me.name, pin);
       me.pinKey = rk;
       db.savePlayers(players);
@@ -433,7 +447,7 @@ var KKCore = (function () {
     }
   };
 
-  var PUBLIC = { info: 1, join: 1, me: 1, board: 1, reveal: 1 };
+  var PUBLIC = { info: 1, join: 1, me: 1, board: 1, reveal: 1, pinCheck: 1 };
 
   function handle(db, hash, op, payload, rand) {
     try {

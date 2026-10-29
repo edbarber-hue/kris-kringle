@@ -576,3 +576,7 @@ table.ml td { vertical-align: top; }
   background: #f6efe0; border: 1px dashed #c9b48e; border-radius: 12px; padding: 14px 16px; margin: 14px 0 6px; }
 .timer-ctl { display: flex; gap: 14px; align-items: center; justify-content: space-between; flex-wrap: wrap;
   margin-top: 18px; padding-top: 16px; border-top: 1px dashed #d4c4a4; }
+.pin-status { min-height: 1.4em; margin: 8px 0 0; font-weight: 700; font-size: 1rem; }
+.pin-status.ok { color: #2d6a3e; }
+.pin-status.bad { color: #b3342a; font-size: 1.1rem; }
+.pin-input::placeholder { color: #c9b48e; letter-spacing: .6em; }
