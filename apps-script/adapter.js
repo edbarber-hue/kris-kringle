@@ -78,6 +78,7 @@ var SheetDB = {
       phase: String(s.phase || 'signup'), budget: Number(s.budget) || 500,
       eventName: String(s.eventName || 'Favor Christmas Party 2027'),
       deadline: s.deadline instanceof Date ? s.deadline.toISOString() : String(s.deadline || ''),
+      timerEnds: s.timerEnds instanceof Date ? s.timerEnds.toISOString() : String(s.timerEnds || ''),
       opensAt: s.opensAt instanceof Date ? s.opensAt.toISOString() : String(s.opensAt || ''),
       partyDate: s.partyDate instanceof Date ? Utilities.formatDate(s.partyDate, Session.getScriptTimeZone(), 'MMM d, yyyy') : String(s.partyDate || ''),
       adminPassword: String(s.adminPassword || ''), salt: String(s.salt || '')
@@ -86,11 +87,14 @@ var SheetDB = {
   saveSettings: function (s) {
     var sh = sheet_(SHEET_SETTINGS);
     var vals = sh.getDataRange().getValues();
-    ['phase', 'budget', 'eventName', 'opensAt', 'deadline', 'partyDate'].forEach(function (k) {
+    var DATES = { deadline: 1, opensAt: 1, timerEnds: 1 };
+    ['phase', 'budget', 'eventName', 'opensAt', 'deadline', 'partyDate', 'timerEnds'].forEach(function (k) {
+      if (s[k] === undefined) return;
       var row = -1;
       for (var i = 0; i < vals.length; i++) if (String(vals[i][0]).trim() === k) row = i + 1;
-      if (row < 0) { sh.appendRow([k, (k === 'deadline' || k === 'opensAt') && s[k] ? "'" + s[k] : s[k]]); vals.push([k, s[k]]); }
-      else sh.getRange(row, 2).setValue((k === 'deadline' || k === 'opensAt') && s[k] ? "'" + s[k] : s[k]);
+      var v = DATES[k] && s[k] ? "'" + s[k] : s[k];
+      if (row < 0) { sh.appendRow([k, v]); vals.push([k, s[k]]); }
+      else sh.getRange(row, 2).setValue(v);
     });
   },
   getGame: function () {

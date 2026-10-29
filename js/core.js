@@ -146,6 +146,7 @@ var KKCore = (function () {
       budget: s.budget || 500,
       eventName: s.eventName || 'Favor Christmas Party 2027',
       deadline: s.deadline || '',
+      timerEnds: s.timerEnds || '',
       editsClosed: editsClosed(s),
       opensAt: s.opensAt || '',
       notOpen: notOpenYet(s),
@@ -375,6 +376,12 @@ var KKCore = (function () {
         s.deadline = d;
       }
       if (v.partyDate != null) s.partyDate = clean(v.partyDate, 40);
+      // Countdown shown on the site for fun. It never draws names: the organizer does.
+      if (v.timerEnds != null) {
+        var te = clean(v.timerEnds, 40);
+        if (te && isNaN(Date.parse(te))) fail('That countdown time isn\'t a valid date and time.');
+        s.timerEnds = te;
+      }
       db.saveSettings(s);
       return { ok: true };
     },

@@ -27,7 +27,20 @@
     try { return new Date(t).toLocaleString('en-US', { timeZone: 'Asia/Manila', weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }); }
     catch (e) { return new Date(t).toLocaleString(); }
   }
+  function fmtLeft(iso) {
+    var m = Math.max(0, Math.round((Date.parse(iso) - Date.now()) / 6e4));
+    return Math.floor(m / 60) + 'h ' + (m % 60) + 'm';
+  }
   // Live countdown: any element with data-deadline gets updated every second.
+  // The countdown people see: the real deadline if there is one, otherwise the organizer's
+  // show-only countdown (it never draws names). Past times show nothing.
+  function timerHTML(s, compact) {
+    if (s.deadline) return countdownHTML(s.deadline, compact);
+    var t = Date.parse(s.timerEnds);
+    if (isNaN(t)) return '';
+    if (t <= Date.now()) return compact ? '' : '<div class="countdown"><span class="cd-closed">Names will be drawn very soon!</span></div>';
+    return countdownHTML(s.timerEnds, compact, compact ? 'Names drawn in' : 'Names drawn in', 'Names will be drawn very soon!').replace('class="countdown', 'data-show="1" class="countdown');
+  }
   function countdownHTML(iso, compact, label, doneText) {
     if (!iso || isNaN(Date.parse(iso))) return '';
     label = label || (compact ? 'Edits close in' : 'See who you\'re buying for in');
@@ -41,7 +54,7 @@
         if (!el.dataset.fired) {
           el.dataset.fired = '1';
           el.innerHTML = '<span class="cd-closed">' + esc(el.dataset.done) + '</span>';
-          setTimeout(function () { if (document.body.contains(el)) route(); }, 1200);
+          if (!el.dataset.show) setTimeout(function () { if (document.body.contains(el)) route(); }, 1200);
         }
         return;
       }
@@ -170,7 +183,7 @@
           '<h1 class="poster-type"><span class="script">Favor</span><span class="big">Kris Kringle</span></h1>' +
           '<p class="poster-sub">' + esc(d.eventName) + '</p>' +
           '<div class="poster-facts">' + facts + '</div>' +
-          (d.notOpen ? countdownHTML(d.opensAt, false, 'Sign-ups open in', 'Opening…') : d.phase === 'signup' ? countdownHTML(d.deadline) : '') +
+          (d.notOpen ? countdownHTML(d.opensAt, false, 'Sign-ups open in', 'Opening…') : d.phase === 'signup' ? timerHTML(d) : '') +
           '<div class="poster-cta">' + cta + '</div>' +
         '</section>'
       );
@@ -206,7 +219,7 @@
       for (var i = 0; i < n; i++) rows += wishRow(prefill[i], Math.min(i, 2));
       render(
         '<div class="card pop">' +
-          '<h2>' + (editing ? 'Your wishlist' : 'Join the game') + '</h2>' + countdownHTML(d.deadline, true) +
+          '<h2>' + (editing ? 'Your wishlist' : 'Join the game') + '</h2>' + timerHTML(d, true) +
           '<form id="joinForm" novalidate>' +
             '<label for="jName">Your full name <span class="hint">first and last, you\'ll log in with it</span></label>' +
             '<input id="jName" name="name" maxlength="60" autocomplete="name" value="' + esc(sess ? sess.name : '') + '">' +
@@ -261,7 +274,7 @@
               '<div class="pin-save"><div class="ps-label">Your PIN</div><div class="ps-pin">' + esc(payload.pin) + '</div>' +
                 '<div class="ps-note">Please remember this PIN so you won\'t forget it! Take a screenshot now. You\'ll log in with <b>' + esc(r.name) + '</b> and this PIN.</div></div>' +
               '<p>' + comeBackLine(info && info.deadline) + '</p>' +
-              countdownHTML(info && info.deadline) +
+              (info ? timerHTML(info) : '') +
               (info && info.deadline ? '<button class="btn" id="remindBtn">Remind me on my phone</button>' : '') +
               '<p style="margin:14px 0 0"><a class="textlink" href="#/join">Edit my wishlist</a> &nbsp; <a class="textlink" href="#/me">Go to my page</a></p>' +
             '</div>'
@@ -315,7 +328,7 @@
 
     if (s.phase === 'signup') {
       html += '<div class="card center pop come-back"><h2>Hi, ' + esc(d.name.split(' ')[0]) + '</h2>' +
-        '<p>' + comeBackLine(s.deadline) + '</p>' + countdownHTML(s.deadline) +
+        '<p>' + comeBackLine(s.deadline) + '</p>' + timerHTML(s) +
         (test || !s.deadline ? '' : '<button class="btn" id="remindBtn">Remind me on my phone</button>') + '</div>';
     } else if (d.shoppingFor) {
       html += '<div class="ticket pop">' + KNIT.band({ fg: '#eca7c6', height: 34 }) +
@@ -523,7 +536,13 @@
           ? '<p class="muted" style="margin-top:0">Names are drawn automatically at <b>' + esc(fmtDeadline(s.deadline)) + '</b>. Then everyone can log in and see who they\'re buying for.</p>'
           : '<p class="muted" style="margin-top:0">Sign-ups are open with no deadline. When everyone\'s in, press <b>Draw names now</b>. Then everyone can log in and see who they\'re buying for, and the master list and messages are emailed to you.</p>') +
         '<button class="btn" id="draw"' + (ps.length < 3 ? ' disabled' : '') + '>Draw names now</button>' +
-        (ps.length < 3 ? '<span class="small muted" style="margin-left:10px">Needs at least 3 people</span>' : '')
+        (ps.length < 3 ? '<span class="small muted" style="margin-left:10px">Needs at least 3 people</span>' : '') +
+        (s.deadline ? '' : '<div class="timer-ctl"><div><b>Countdown on the site</b><div class="small muted">' +
+          (Date.parse(s.timerEnds) > Date.now()
+            ? 'Showing: names drawn in ' + esc(fmtLeft(s.timerEnds)) + ' (ends ' + esc(fmtDeadline(s.timerEnds)) + '). It\'s just for show: names are only drawn when you press Draw.'
+            : (s.timerEnds ? 'The countdown ended. People see "Names will be drawn very soon!"' : 'Off.') + ' It\'s just for show: names are only drawn when you press Draw.') +
+          '</div></div><div class="row" style="gap:8px"><button class="btn secondary small" id="timer12">' + (s.timerEnds ? 'Restart 12 hours' : 'Start 12-hour countdown') + '</button>' +
+          (s.timerEnds ? '<button class="btn ghost small" id="timerOff">Hide countdown</button>' : '') + '</div></div>')
       : '<p class="muted" style="margin-top:0">Names are drawn. Everyone can log in to see who they\'re buying for.</p>' +
         '<button class="btn ghost small" id="reopen">Undo the draw and reopen sign-ups</button>';
 
@@ -618,6 +637,13 @@
         });
       };
     });
+    var setTimer = function (iso, b) {
+      busy(b, true);
+      API.call('saveSettings', { password: adminPw(), values: { timerEnds: iso } }).then(viewOrganizer)
+        .catch(function (err) { busy(b, false); tell(err.message); });
+    };
+    on0('timer12', function (b) { setTimer(new Date(Date.now() + 12 * 36e5).toISOString(), b); });
+    on0('timerOff', function (b) { setTimer('', b); });
     $('#setForm').addEventListener('submit', function (e) {
       e.preventDefault();
       var f = e.target, btn = f.querySelector('button');

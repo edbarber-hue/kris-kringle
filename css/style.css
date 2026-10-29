@@ -574,3 +574,5 @@ table.ml td { vertical-align: top; }
 .ml-email { font-size: .82rem; font-weight: 400; color: #6b5a48; word-break: break-all; margin-top: 2px; }
 .email-all { display: flex; gap: 14px; align-items: center; justify-content: space-between; flex-wrap: wrap;
   background: #f6efe0; border: 1px dashed #c9b48e; border-radius: 12px; padding: 14px 16px; margin: 14px 0 6px; }
+.timer-ctl { display: flex; gap: 14px; align-items: center; justify-content: space-between; flex-wrap: wrap;
+  margin-top: 18px; padding-top: 16px; border-top: 1px dashed #d4c4a4; }
