@@ -11,10 +11,14 @@
       return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
     });
   }
+  // The login and "already opened my present" stay on the phone (so people come back
+  // still logged in); everything else lasts only for this visit.
   function store(k, v) {
+    var S;
+    try { S = (k === 'me' || /^seen-/.test(k)) ? localStorage : sessionStorage; S.getItem('x'); } catch (e) { S = sessionStorage; }
     try {
-      if (v === undefined) { var r = sessionStorage.getItem('kk-' + k); return r ? JSON.parse(r) : null; }
-      if (v === null) sessionStorage.removeItem('kk-' + k); else sessionStorage.setItem('kk-' + k, JSON.stringify(v));
+      if (v === undefined) { var r = S.getItem('kk-' + k); return r ? JSON.parse(r) : null; }
+      if (v === null) S.removeItem('kk-' + k); else S.setItem('kk-' + k, JSON.stringify(v));
     } catch (e) { return null; }
   }
   function $(sel, root) { return (root || document).querySelector(sel); }
@@ -227,9 +231,9 @@
             '<input id="jEmail" name="email" type="email" maxlength="120" autocomplete="email" inputmode="email" placeholder="you@example.com" value="' + esc(sess && sess.email ? sess.email : '') + '">' +
             (editing ? '<p class="small muted" style="margin:6px 0 0">Not ' + esc(sess.name.split(' ')[0]) + '? <a href="#" id="notMe">Start fresh</a></p>' : '') +
             '<label for="jPin">Make your own 4-digit PIN <span class="hint">numbers only</span></label>' +
+            '<div class="pin-note above"><b>Think of a 4-digit PIN.</b> This will be your code for future log ins.</div>' +
             '<input id="jPin" name="pin" class="pin-input" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="••••" value="' + esc(sess ? sess.pin : '') + '">' +
             '<div id="pinStatus" class="pin-status" aria-live="polite"></div>' +
-            '<div class="pin-note"><b>Think of a 4-digit PIN.</b> This will be your code for future log ins.</div>' +
             '<label>Gift ideas <span class="hint">3 to 5, around ' + peso(d.budget) + ' each</span></label>' +
             '<div class="brief"><b>Be ultra specific.</b> Include color, size, brand, scent or flavor. ' +
             '<span class="hint-red">Hint: overcommunicate. Your Kris Kringle can only get what you describe.</span></div>' +
@@ -275,10 +279,11 @@
               (r.renamed ? '<p class="small muted">From now on, log in as ' + esc(r.name) + '.</p>' : '') +
               '<div class="pin-save"><div class="ps-label">Your PIN</div><div class="ps-pin">' + esc(payload.pin) + '</div>' +
                 '<div class="ps-note">Please remember this PIN so you won\'t forget it! Take a screenshot now. You\'ll log in with <b>' + esc(r.name) + '</b> and this PIN.</div></div>' +
-              '<p>' + comeBackLine(info && info.deadline) + '</p>' +
+              '<p class="come-line">' + comeBackLine(info && info.deadline) + '</p>' +
               (info ? timerHTML(info) : '') +
               (info && info.deadline ? '<button class="btn" id="remindBtn">Remind me on my phone</button>' : '') +
-              '<p style="margin:14px 0 0"><a class="textlink" href="#/join">Edit my wishlist</a> &nbsp; <a class="textlink" href="#/me">Go to my page</a></p>' +
+              '<a class="btn block" href="#/me" style="margin-top:6px">Check my wishlist</a>' +
+              '<p style="margin:14px 0 0"><a class="textlink" href="#/join">Edit my wishlist</a></p>' +
             '</div>'
           );
           if ($('#remindBtn')) $('#remindBtn').onclick = function () { openRemind(info); };
@@ -355,11 +360,75 @@
     });
   }
 
+  // ---------- The big reveal: a present that shakes, pops open, and shows the name ----------
+  function giftReveal(name, s) {
+    var ov = document.createElement('div');
+    ov.className = 'gift-stage';
+    ov.innerHTML =
+      '<div class="gift-title">Ready to see who you got?</div>' +
+      '<button class="gift" id="gift" aria-label="Open your present">' +
+        '<span class="gift-lid"><span class="bow l"></span><span class="bow r"></span></span>' +
+        '<span class="gift-box"></span>' +
+      '</button>' +
+      '<div class="gift-hint">Tap the present to open it</div>';
+    document.body.appendChild(ov);
+    document.body.classList.add('no-scroll');
+    var g = $('#gift', ov), opened = false;
+    g.onclick = function () {
+      if (opened) return; opened = true;
+      $('.gift-hint', ov).textContent = '';
+      g.classList.add('shake');
+      setTimeout(function () {
+        g.classList.remove('shake'); g.classList.add('open');
+        confetti(260);
+        setTimeout(function () {
+          var card = document.createElement('div');
+          card.className = 'gift-reveal';
+          ov.classList.add('revealed');
+          card.innerHTML = '<div class="label">You\'re buying for</div><div class="knit-name">' + knitLines(name) + '</div>' +
+            '<div class="sub">' + peso(s.budget) + ' budget' + (s.partyDate ? '. Bring it on ' + esc(s.partyDate) : '') + '. Keep it a secret! 🤫</div>' +
+            '<button class="btn cream block" id="giftDone">See their wishlist</button>';
+          ov.appendChild(card);
+          setTimeout(function () { confetti(160); }, 500);
+          $('#giftDone', card).onclick = function () { ov.remove(); document.body.classList.remove('no-scroll'); window.scrollTo(0, 0); };
+        }, 650);
+      }, 1500);
+    };
+  }
+
+  // Logged-in people get a pop-up the moment names are drawn (checked every 20 seconds).
+  function drawWatch() {
+    var sess = store('me');
+    if (!sess || !sess.pin) return;
+    var name = (location.hash.replace(/^#\/?/, '').split('/')[0] || '');
+    if (name === 'organizer' || name === 'test') return;
+    var firstPhase = null;
+    var check = function () {
+      API.call('info').then(function (d) {
+        info = d;
+        if (firstPhase === null) firstPhase = d.phase;
+        if (d.phase === 'signup' || $('.gift-stage') || !modal.hidden) return;
+        // On "My page" the present opens right there.
+        if (name === 'me') { if (firstPhase === 'signup') { firstPhase = d.phase; route(); } return; }
+        API.call('me', { name: sess.name, pin: sess.pin }).then(function (m) {
+          if (!m.shoppingFor || store('seen-' + m.name + '>' + m.shoppingFor.name)) return;
+          var box = openModal('<div class="center"><div style="font-size:3.4rem;line-height:1">🎁</div><h2>Names are drawn!</h2>' +
+            '<p style="font-size:1.15rem">Ready to see who you\'re gonna get?</p>' +
+            '<button class="btn block" id="readyYes">Yes! Show me</button></div>', true);
+          $('#readyYes', box).onclick = function () { closeModal(); location.hash = '#/me'; };
+        }).catch(function () {});
+      }).catch(function () {});
+    };
+    check();
+    every(20000, check);
+  }
+
   function meDashboard(d) {
     var test = !!d.testMode;
     if (!test) { var sess = store('me') || {}; store('me', { name: d.name, email: d.email || '', pin: sess.pin, wishes: d.wishes }); }
     var s = d.settings, html = '';
-    if (test) html += '<div class="test-bar">Viewing as <b>' + esc(d.name) + '</b>. This is exactly what they see. <a href="#/organizer">Back to the master list</a></div>';
+    if (test) html += '<div class="test-bar">Viewing as <b>' + esc(d.name) + '</b>. This is exactly what they see. <a href="#/organizer">Back to the master list</a>' +
+      (d.shoppingFor ? ' <button class="btn small" id="playReveal" style="margin-left:8px">Play their reveal</button>' : '') + '</div>';
 
     if (s.phase === 'signup') {
       html += '<div class="card center pop come-back"><h2>Hi, ' + esc(d.name.split(' ')[0]) + '</h2>' +
@@ -377,7 +446,9 @@
       '<div style="margin-top:6px">' + wishListHTML(d.wishes) + '</div></div>' +
       (test ? '' : '<p class="center"><button class="btn ghost small" id="logout" style="color:var(--cream)">Log out</button></p>');
     render(html);
-    if (!test && d.shoppingFor && !store('seen-' + d.shoppingFor.no)) { confetti(120); store('seen-' + d.shoppingFor.no, 1); }
+    var seenKey = 'seen-' + d.name + '>' + (d.shoppingFor ? d.shoppingFor.name : '');
+    if (!test && d.shoppingFor && !store(seenKey)) { store(seenKey, 1); giftReveal(d.shoppingFor.name, s); }
+    if ($('#playReveal')) $('#playReveal').onclick = function () { giftReveal(d.shoppingFor.name, s); };
     if ($('#logout')) $('#logout').onclick = function () { store('me', null); meLogin(); };
     if ($('#remindBtn')) $('#remindBtn').onclick = function () { openRemind(s); };
   }
@@ -427,7 +498,7 @@
 
   function comeBackLine(deadline) {
     var t = Date.parse(deadline);
-    if (isNaN(t)) return 'Come back after names are drawn to see who you\'re buying for.';
+    if (isNaN(t)) return 'Come back when the countdown ends to see who you got! 🎁';
     return 'Come back after ' + esc(fmtDeadline(deadline)) + ' to see who you\'re buying for and their wishlist.';
   }
 
@@ -576,8 +647,12 @@
           (Date.parse(s.timerEnds) > Date.now()
             ? 'Showing: names drawn in ' + esc(fmtLeft(s.timerEnds)) + ' (ends ' + esc(fmtDeadline(s.timerEnds)) + '). It\'s just for show: names are only drawn when you press Draw.'
             : (s.timerEnds ? 'The countdown ended. People see "Names will be drawn very soon!"' : 'Off.') + ' It\'s just for show: names are only drawn when you press Draw.') +
-          '</div></div><div class="row" style="gap:8px"><button class="btn secondary small" id="timer12">' + (s.timerEnds ? 'Restart 12 hours' : 'Start 12-hour countdown') + '</button>' +
-          (s.timerEnds ? '<button class="btn ghost small" id="timerOff">Hide countdown</button>' : '') + '</div></div>')
+          '</div></div>' +
+          '<div class="timer-set"><input type="datetime-local" id="timerAt" value="' + esc(toLocalInput(s.timerEnds)) + '"><button class="btn small" id="timerSave">Set</button></div>' +
+          '<div class="row" style="gap:8px;flex-wrap:wrap;margin-top:8px">' +
+            '<button class="btn secondary small" id="timerTue">Next Tuesday, 11:59 PM</button>' +
+            '<button class="btn secondary small" id="timerTest">Test: ends in 1 minute</button>' +
+            (s.timerEnds ? '<button class="btn ghost small" id="timerOff">Hide countdown</button>' : '') + '</div></div>')
       : '<p class="muted" style="margin-top:0">Names are drawn. Everyone can log in to see who they\'re buying for.</p>' +
         '<button class="btn ghost small" id="reopen">Undo the draw and reopen sign-ups</button>';
 
@@ -677,7 +752,14 @@
       API.call('saveSettings', { password: adminPw(), values: { timerEnds: iso } }).then(viewOrganizer)
         .catch(function (err) { busy(b, false); tell(err.message); });
     };
-    on0('timer12', function (b) { setTimer(new Date(Date.now() + 12 * 36e5).toISOString(), b); });
+    on0('timerTest', function (b) { setTimer(new Date(Date.now() + 60e3).toISOString(), b); });
+    on0('timerTue', function (b) {
+      // Next Tuesday (today if it's Tuesday) at 11:59 PM Manila time
+      var now = new Date(Date.now() + 8 * 36e5), add = (2 - now.getUTCDay() + 7) % 7;
+      var d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + add));
+      setTimer(d.toISOString().slice(0, 10) + 'T23:59:00+08:00', b);
+    });
+    on0('timerSave', function (b) { var v = $('#timerAt').value; if (v) setTimer(v + ':00+08:00', b); });
     on0('timerOff', function (b) { setTimer('', b); });
     $('#setForm').addEventListener('submit', function (e) {
       e.preventDefault();
@@ -1584,6 +1666,7 @@
     window.scrollTo(0, 0);
     fn();
     renderWalkBar();
+    drawWatch();
   }
   addEventListener('hashchange', route);
 

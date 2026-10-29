@@ -580,3 +580,55 @@ table.ml td { vertical-align: top; }
 .pin-status.ok { color: #2d6a3e; }
 .pin-status.bad { color: #b3342a; font-size: 1.1rem; }
 .pin-input::placeholder { color: #c9b48e; letter-spacing: .6em; }
+
+/* PIN note sits above the PIN box */
+.pin-note.above { margin: 4px 0 10px; }
+.come-line { font-size: 1.15rem; font-weight: 700; }
+body.no-scroll { overflow: hidden; }
+
+/* ---------- The big reveal ---------- */
+.gift-stage { position: fixed; inset: 0; z-index: 55; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 18px; padding: 24px 16px; text-align: center; color: var(--cream);
+  background: radial-gradient(circle at 50% 40%, #c43d31 0%, #8e2219 70%); animation: stageIn .35s ease-out; }
+@keyframes stageIn { from { opacity: 0; } to { opacity: 1; } }
+.gift-title { font-weight: 900; font-size: clamp(1.7rem, 7vw, 2.6rem); text-transform: uppercase; letter-spacing: .01em; line-height: 1.05; }
+.gift-hint { color: var(--pink); font-weight: 700; font-size: 1.1rem; min-height: 1.4em; animation: hintPulse 1.4s ease-in-out infinite; }
+@keyframes hintPulse { 50% { opacity: .45; } }
+.gift { position: relative; width: 200px; height: 210px; border: 0; padding: 0; background: none; cursor: pointer; -webkit-tap-highlight-color: transparent;
+  animation: giftBob 2.2s ease-in-out infinite; }
+@keyframes giftBob { 50% { transform: translateY(-8px); } }
+.gift-box { position: absolute; left: 14px; right: 14px; bottom: 0; height: 140px; border-radius: 8px;
+  background: linear-gradient(90deg, transparent 42%, var(--pink) 42%, var(--pink) 58%, transparent 58%), var(--pine);
+  box-shadow: inset 0 -14px 0 rgba(0,0,0,.18), 0 18px 30px -10px rgba(0,0,0,.5); transition: transform .5s ease-in, opacity .5s; }
+.gift-lid { position: absolute; left: 0; right: 0; top: 34px; height: 46px; border-radius: 8px; z-index: 2;
+  background: linear-gradient(90deg, transparent 42%, var(--pink-deep) 42%, var(--pink-deep) 58%, transparent 58%), #3a5c41;
+  box-shadow: 0 6px 0 rgba(0,0,0,.18); transition: transform .7s cubic-bezier(.2,.9,.3,1.2), opacity .7s; }
+.bow { position: absolute; top: -34px; width: 50px; height: 40px; border: 10px solid var(--pink); border-radius: 50% 50% 10% 50%; }
+.bow.l { left: 50%; margin-left: -52px; transform: rotate(-20deg); }
+.bow.r { left: 50%; margin-left: 2px; transform: scaleX(-1) rotate(-20deg); }
+.gift.shake { animation: giftShake 1.5s ease-in-out; }
+@keyframes giftShake {
+  0%, 100% { transform: rotate(0) scale(1); }
+  10% { transform: rotate(-6deg); } 20% { transform: rotate(6deg); } 30% { transform: rotate(-9deg) scale(1.03); }
+  40% { transform: rotate(9deg) scale(1.05); } 50% { transform: rotate(-12deg) scale(1.07); } 60% { transform: rotate(12deg) scale(1.09); }
+  70% { transform: rotate(-14deg) scale(1.1); } 80% { transform: rotate(14deg) scale(1.12); } 90% { transform: rotate(-6deg) scale(1.15); }
+}
+.gift.open { animation: none; }
+.gift.open .gift-lid { transform: translate(60px, -260px) rotate(40deg); opacity: 0; }
+.gift.open .gift-box { transform: scale(.6) translateY(80px); opacity: 0; }
+.gift-reveal { position: absolute; left: 50%; top: 50%; width: min(92vw, 460px); transform: translate(-50%, -50%);
+  background: var(--pine); background-image: var(--knit), var(--noise); border-radius: var(--radius); padding: 26px 22px;
+  box-shadow: 0 30px 80px -20px rgba(0,0,0,.7); animation: revealPop .7s cubic-bezier(.2,1.4,.4,1) both; }
+@keyframes revealPop { 0% { transform: translate(-50%, -50%) scale(.2); opacity: 0; } 100% { transform: translate(-50%, -50%) scale(1); opacity: 1; } }
+.gift-reveal .label { color: var(--pink); font-weight: 900; text-transform: uppercase; letter-spacing: .08em; font-size: 1.1rem; margin-bottom: 12px; }
+.gift-reveal .knit-name { color: var(--cream); margin: 6px 0 14px; }
+.gift-reveal .sub { color: var(--cream); opacity: .9; margin-bottom: 18px; }
+@media (prefers-reduced-motion: reduce) { .gift, .gift.shake { animation: none; } }
+.gift-reveal .knit-name { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+.gift-reveal .knit-name .knit-text { height: clamp(44px, 12vw, 70px); max-width: 100%; color: var(--pink); filter: drop-shadow(0 3px 4px rgba(0,0,0,.35)); }
+.timer-ctl { flex-direction: column; align-items: stretch; }
+.timer-set { display: flex; gap: 8px; margin-top: 10px; }
+.timer-set input { max-width: 260px; }
+.wrap-note { background: rgba(236,167,198,.18); border: 2px dashed var(--pink); border-radius: 12px; padding: 12px 14px; margin: 0 0 16px; color: var(--cream); font-size: 1.05rem; }
+.wrap-card { border: 3px dashed var(--red); }
+.gift-stage.revealed .gift-title, .gift-stage.revealed .gift-hint { opacity: 0; transition: opacity .3s; }

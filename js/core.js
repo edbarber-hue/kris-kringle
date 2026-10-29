@@ -471,7 +471,8 @@ var KKCore = (function () {
         var text = 'Hey ' + p.name.split(' ')[0] + '! 🎁 For our Kris Kringle, you chose ' + t.name + '.\n\n' +
           'This is what they asked for:\n' +
           t.wishes.map(function (w) { return '• ' + w.item + (w.link ? ' (' + w.link + ')' : ''); }).join('\n') +
-          '\n\nBudget is ₱' + budget + (settings && settings.partyDate ? ', and bring it on ' + settings.partyDate : '') + '. Keep it a secret! 🤫';
+          '\n\nBudget is ₱' + budget + (settings && settings.partyDate ? ', and bring it on ' + settings.partyDate : '') + '. Keep it a secret! 🤫\n\n' +
+          'Final instruction: please make sure it\'s wrapped well! 🎀';
         return { name: p.name, email: p.email || '', chose: t.name, text: text };
       });
   }
