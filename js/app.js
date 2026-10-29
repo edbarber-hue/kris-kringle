@@ -223,7 +223,7 @@
           '<form id="joinForm" novalidate>' +
             '<label for="jName">Your full name <span class="hint">first and last, you\'ll log in with it</span></label>' +
             '<input id="jName" name="name" maxlength="60" autocomplete="name" value="' + esc(sess ? sess.name : '') + '">' +
-            '<label for="jEmail">Your email <span class="hint">we\'ll email you who you got</span></label>' +
+            '<label for="jEmail">Your email</label>' +
             '<input id="jEmail" name="email" type="email" maxlength="120" autocomplete="email" inputmode="email" placeholder="you@example.com" value="' + esc(sess && sess.email ? sess.email : '') + '">' +
             (editing ? '<p class="small muted" style="margin:6px 0 0">Not ' + esc(sess.name.split(' ')[0]) + '? <a href="#" id="notMe">Start fresh</a></p>' : '') +
             '<label for="jPin">Make your own 4-digit PIN <span class="hint">numbers only</span></label>' +
@@ -427,7 +427,7 @@
 
   function comeBackLine(deadline) {
     var t = Date.parse(deadline);
-    if (isNaN(t)) return 'Once names are drawn, you\'ll get an email with who you\'re buying for. You can also log in here to see it.';
+    if (isNaN(t)) return 'Come back after names are drawn to see who you\'re buying for.';
     return 'Come back after ' + esc(fmtDeadline(deadline)) + ' to see who you\'re buying for and their wishlist.';
   }
 

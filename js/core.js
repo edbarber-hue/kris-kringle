@@ -49,7 +49,7 @@ var KKCore = (function () {
   // Email is required for new sign-ups; people who joined before it existed can add it when they edit.
   function cleanEmail(e, required) {
     e = clean(e, 120).toLowerCase();
-    if (!e) { if (required) fail('Please enter your email so we can send you who you got.'); return ''; }
+    if (!e) { if (required) fail('Please enter your email.'); return ''; }
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e)) fail('That email doesn\'t look right. Check it and try again.');
     return e;
   }
