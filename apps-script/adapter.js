@@ -3,8 +3,10 @@
 var SHEET_PLAYERS = 'Players';
 var SHEET_SETTINGS = 'Settings';
 var SHEET_TRIVIA = 'Trivia';
-var PLAYER_HEADERS = ['Name', 'Mystery #', 'Animal name', 'Shops for Mystery #', 'Shops for (name)',
-  'Wish 1', 'Wish 2', 'Wish 3', 'Wish 4', 'Wish 5', 'Joined', 'ID', 'PIN hash (do not edit)', 'PIN key (do not edit)'];
+// Columns: who they are, who they're giving to, their wishlist, then technical columns (don't edit).
+var PLAYER_HEADERS = ['WHO THEY ARE', 'WHO THEY\'RE GIVING TO',
+  'Wish 1', 'Wish 2', 'Wish 3', 'Wish 4', 'Wish 5', 'Signed up',
+  'Draw # (do not edit)', 'Alias (unused)', 'Gives to draw # (do not edit)', 'ID (do not edit)', 'PIN hash (do not edit)', 'PIN key (do not edit)'];
 
 function ss_() { return SpreadsheetApp.getActiveSpreadsheet(); }
 
@@ -23,6 +25,16 @@ function cellToWish_(c) {
   return { item: c, link: '' };
 }
 
+// Keeps the Players tab readable: bold headers, the two key columns highlighted.
+function formatPlayers_(sh) {
+  sh.getRange(1, 1, 1, PLAYER_HEADERS.length).setValues([PLAYER_HEADERS]).setFontWeight('bold')
+    .setBackground('#0f3d2e').setFontColor('#ffffff');
+  sh.getRange(1, 1, 1, 2).setBackground('#b3342a');
+  sh.getRange(1, 9, 1, 6).setBackground('#9e9e9e');
+  sh.setFrozenRows(1);
+  sh.setFrozenColumns(2);
+}
+
 var SheetDB = {
   getPlayers: function () {
     var sh = sheet_(SHEET_PLAYERS);
@@ -32,10 +44,10 @@ var SheetDB = {
       .filter(function (r) { return String(r[0]).trim() && r[11]; })
       .map(function (r) {
         var wishes = [];
-        for (var i = 5; i <= 9; i++) { var w = cellToWish_(r[i]); if (w) wishes.push(w); }
+        for (var i = 2; i <= 6; i++) { var w = cellToWish_(r[i]); if (w) wishes.push(w); }
         return {
-          name: String(r[0]).trim(), mystery: Number(r[1]) || 0, alias: String(r[2] || ''), shopsFor: Number(r[3]) || 0,
-          wishes: wishes, joinedAt: r[10] instanceof Date ? r[10].toISOString() : String(r[10]),
+          name: String(r[0]).trim(), mystery: Number(r[8]) || 0, alias: String(r[9] || ''), shopsFor: Number(r[10]) || 0,
+          wishes: wishes, joinedAt: r[7] instanceof Date ? r[7].toISOString() : String(r[7]),
           id: String(r[11]), pinHash: String(r[12]), pinKey: String(r[13] || '')
         };
       });
@@ -46,10 +58,11 @@ var SheetDB = {
     list.forEach(function (p) { if (p.mystery) byNo[p.mystery] = p.name; });
     var rows = list.map(function (p) {
       var w = p.wishes || [];
-      return [p.name, p.mystery || '', p.alias || '', p.shopsFor || '', p.shopsFor ? (byNo[p.shopsFor] || '') : '',
+      return [p.name, p.shopsFor ? (byNo[p.shopsFor] || '') : '',
         wishToCell_(w[0]), wishToCell_(w[1]), wishToCell_(w[2]), wishToCell_(w[3]), wishToCell_(w[4]),
-        p.joinedAt, p.id, p.pinHash, p.pinKey || ''];
+        p.joinedAt, p.mystery || '', p.alias || '', p.shopsFor || '', p.id, p.pinHash, p.pinKey || ''];
     });
+    formatPlayers_(sh);
     var last = sh.getLastRow();
     if (last > 1) sh.getRange(2, 1, last - 1, PLAYER_HEADERS.length).clearContent();
     if (rows.length) sh.getRange(2, 1, rows.length, PLAYER_HEADERS.length).setValues(rows);
@@ -214,11 +227,9 @@ function setup() {
   ScriptApp.getProjectTriggers().forEach(function (t) { if (t.getHandlerFunction() === 'checkDeadline') ScriptApp.deleteTrigger(t); });
   ScriptApp.newTrigger('checkDeadline').timeBased().everyMinutes(10).create();
   var players = ss.getSheetByName(SHEET_PLAYERS) || ss.insertSheet(SHEET_PLAYERS);
-  players.getRange(1, 1, 1, PLAYER_HEADERS.length).setValues([PLAYER_HEADERS])
-    .setFontWeight('bold').setBackground('#0f3d2e').setFontColor('#ffffff');
-  players.setFrozenRows(1);
-  players.setColumnWidth(3, 240);
-  players.setColumnWidths(6, 5, 220);
+  formatPlayers_(players);
+  players.setColumnWidths(1, 2, 200);
+  players.setColumnWidths(3, 5, 220);
 
   var settings = ss.getSheetByName(SHEET_SETTINGS) || ss.insertSheet(SHEET_SETTINGS);
   if (settings.getLastRow() < 1) {
