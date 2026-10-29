@@ -257,11 +257,11 @@
               (r.renamed ? '<p class="small muted">From now on, log in as ' + esc(r.name) + '.</p>' : '') +
               '<p>' + comeBackLine(info && info.deadline) + '</p>' +
               countdownHTML(info && info.deadline) +
-              '<button class="btn" id="remindBtn">Remind me on my phone</button>' +
+              (info && info.deadline ? '<button class="btn" id="remindBtn">Remind me on my phone</button>' : '') +
               '<p style="margin:14px 0 0"><a class="textlink" href="#/join">Edit my wishlist</a> &nbsp; <a class="textlink" href="#/me">Go to my page</a></p>' +
             '</div>'
           );
-          $('#remindBtn').onclick = function () { openRemind(info); };
+          if ($('#remindBtn')) $('#remindBtn').onclick = function () { openRemind(info); };
         }).catch(function (err) { busy(btn, false); showError('#jErr', err); });
       });
     }).catch(function (e) { render('<div class="error">' + esc(e.message) + '</div>'); });
@@ -311,7 +311,7 @@
     if (s.phase === 'signup') {
       html += '<div class="card center pop come-back"><h2>Hi, ' + esc(d.name.split(' ')[0]) + '</h2>' +
         '<p>' + comeBackLine(s.deadline) + '</p>' + countdownHTML(s.deadline) +
-        (test ? '' : '<button class="btn" id="remindBtn">Remind me on my phone</button>') + '</div>';
+        (test || !s.deadline ? '' : '<button class="btn" id="remindBtn">Remind me on my phone</button>') + '</div>';
     } else if (d.shoppingFor) {
       html += '<div class="ticket pop">' + KNIT.band({ fg: '#eca7c6', height: 34 }) +
         '<div class="label">You\'re buying for</div>' +
@@ -496,7 +496,9 @@
     var sorted = ps.slice().sort(function (a, b) { return a.name.localeCompare(b.name); });
 
     var actions = !drawn
-      ? '<p class="muted" style="margin-top:0">Names are drawn automatically at <b>' + (s.deadline ? esc(fmtDeadline(s.deadline)) : 'the deadline') + '</b>. Then everyone can log in and see who they\'re buying for.</p>' +
+      ? (s.deadline
+          ? '<p class="muted" style="margin-top:0">Names are drawn automatically at <b>' + esc(fmtDeadline(s.deadline)) + '</b>. Then everyone can log in and see who they\'re buying for.</p>'
+          : '<p class="muted" style="margin-top:0">Sign-ups are open with no deadline. When everyone\'s in, press <b>Draw names now</b>. Then everyone can log in and see who they\'re buying for, and the master list and messages are emailed to you.</p>') +
         '<button class="btn" id="draw"' + (ps.length < 3 ? ' disabled' : '') + '>Draw names now</button>' +
         (ps.length < 3 ? '<span class="small muted" style="margin-left:10px">Needs at least 3 people</span>' : '')
       : '<p class="muted" style="margin-top:0">Names are drawn. Everyone can log in to see who they\'re buying for.</p>' +
@@ -521,7 +523,7 @@
         '<button class="btn ghost small" id="aOut">Lock</button></div>' +
       '<div class="stats no-print">' +
         '<div class="stat"><div class="n">' + ps.length + '</div><div class="l">signed up</div></div>' +
-        '<div class="stat"><div class="n" style="font-size:1.3rem">' + (s.deadline ? esc(fmtDeadline(s.deadline)) : 'Not set') + '</div><div class="l">names drawn</div></div>' +
+        '<div class="stat"><div class="n" style="font-size:1.3rem">' + (s.deadline ? esc(fmtDeadline(s.deadline)) : 'When you press Draw') + '</div><div class="l">names drawn</div></div>' +
         '<div class="stat"><div class="n">' + peso(s.budget) + '</div><div class="l">budget</div></div>' +
       '</div>' +
       '<div class="card no-print">' + actions + '<div id="actErr" hidden></div></div>' +
@@ -537,7 +539,7 @@
       (drawn ? messagesCard(ps, s) : '') +
       '<div class="card no-print"><h3>Invite message</h3>' +
         '<textarea id="invite" rows="4">' + esc(s.eventName) + ': Kris Kringle 🎁\n' +
-        'Sign up and add 3–5 gift ideas' + (s.deadline ? ' by ' + esc(fmtDeadline(s.deadline)) : '') + '. ' + peso(s.budget) + ' budget. You\'ll see who you\'re buying for after that.\n' + esc(siteUrl) + '</textarea>' +
+        'Sign up and add 3–5 gift ideas' + (s.deadline ? ' by ' + esc(fmtDeadline(s.deadline)) : '') + '. ' + peso(s.budget) + ' budget. You\'ll see who you\'re buying for once names are drawn.\n' + esc(siteUrl) + '</textarea>' +
         '<button class="btn secondary small" id="copyInvite" style="margin-top:8px">Copy</button></div>' +
       '<details class="card no-print"><summary>Event settings</summary>' +
         '<form id="setForm"><input type="hidden" name="opensAt" value="' + esc(toLocalInput(s.opensAt)) + '"><div class="grid2">' +
