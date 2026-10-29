@@ -837,12 +837,6 @@ function setup() {
     settings.setColumnWidth(1, 140); settings.setColumnWidth(2, 260); settings.setColumnWidth(3, 380);
   }
 
-  var trivia = ss.getSheetByName(SHEET_TRIVIA) || ss.insertSheet(SHEET_TRIVIA);
-  if (trivia.getLastRow() < 2) {
-    trivia.getRange(1, 1, 1, 2).setValues([['Question', 'Answer']]).setFontWeight('bold');
-    trivia.getRange(2, 1, KK_TRIVIA_SEED.length, 2).setValues(KK_TRIVIA_SEED.map(function (t) { return [t.q, t.a]; }));
-    trivia.setColumnWidth(1, 560); trivia.setColumnWidth(2, 260);
-  }
 
   var first = ss.getSheets()[0];
   if (first.getName() === 'Sheet1' && first.getLastRow() === 0) ss.deleteSheet(first);
