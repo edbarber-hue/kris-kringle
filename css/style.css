@@ -561,3 +561,11 @@ table.ml td { vertical-align: top; }
 .msg { border-top: 1px dashed #d4c4a4; padding: 14px 0 6px; }
 .msg-text { white-space: pre-wrap; font-family: var(--sans); font-size: .95rem; line-height: 1.5; background: #fbf6ea; border: 1px solid #e3d6bb; border-radius: 6px; padding: 12px 14px; margin: 10px 0 4px; }
 .btn.copied { background: var(--pine); border-color: var(--pine); color: var(--cream); }
+
+/* ---------- PIN reminders ---------- */
+.pin-note { margin-top: 10px; padding: 12px 14px; border-radius: 6px; background: var(--red); color: var(--cream); font-size: .95rem; line-height: 1.45; }
+.pin-note b { display: block; font-size: 1.05rem; margin-bottom: 2px; }
+.pin-save { margin: 6px auto 18px; max-width: 320px; padding: 16px; border: 3px dashed var(--red); border-radius: 10px; background: #fff; }
+.ps-label { font-weight: 800; text-transform: uppercase; letter-spacing: .06em; color: var(--red); font-size: .85rem; }
+.ps-pin { font-weight: 900; font-stretch: 125%; font-size: 3rem; letter-spacing: .25em; color: var(--ink); line-height: 1.1; margin: 4px 0 6px; padding-left: .25em; }
+.ps-note { font-size: .92rem; color: var(--ink); line-height: 1.45; }

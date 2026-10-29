@@ -213,6 +213,7 @@
             (editing ? '<p class="small muted" style="margin:6px 0 0">Not ' + esc(sess.name.split(' ')[0]) + '? <a href="#" id="notMe">Start fresh</a></p>' : '') +
             '<label for="jPin">Pick a 4-digit PIN <span class="hint">to log in later</span></label>' +
             '<input id="jPin" name="pin" class="pin-input" inputmode="numeric" maxlength="4" autocomplete="off" type="password" value="' + esc(sess ? sess.pin : '') + '">' +
+            '<div class="pin-note"><b>Please remember this PIN so you won\'t forget it!</b> You\'ll need it with your full name to see who you\'re buying for. Write it down or take a screenshot.</div>' +
             '<label>Gift ideas <span class="hint">3 to 5, around ' + peso(d.budget) + ' each</span></label>' +
             '<div class="brief"><b>Be ultra specific.</b> Include color, size, brand, scent or flavor. ' +
             '<span class="hint-red">Hint: overcommunicate. Your Kris Kringle can only get what you describe.</span></div>' +
@@ -255,6 +256,8 @@
             '<div class="card center pop come-back">' + KNIT.stockings(5) +
               '<h2>' + (r.updated ? 'Saved' : 'You\'re in, ' + esc(r.name.split(' ')[0])) + '</h2>' +
               (r.renamed ? '<p class="small muted">From now on, log in as ' + esc(r.name) + '.</p>' : '') +
+              '<div class="pin-save"><div class="ps-label">Your PIN</div><div class="ps-pin">' + esc(payload.pin) + '</div>' +
+                '<div class="ps-note">Please remember this PIN so you won\'t forget it! Take a screenshot now. You\'ll log in with <b>' + esc(r.name) + '</b> and this PIN.</div></div>' +
               '<p>' + comeBackLine(info && info.deadline) + '</p>' +
               countdownHTML(info && info.deadline) +
               (info && info.deadline ? '<button class="btn" id="remindBtn">Remind me on my phone</button>' : '') +
